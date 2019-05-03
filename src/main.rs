@@ -20,26 +20,27 @@ fn main() {
         eprintln!("GetThreadDesktop failed.");
         return;
     }
+    unsafe extern "system" fn fn1(_: HWND, _: LPARAM) -> BOOL {
+        0
+    }
     let enum_windows_rc = unsafe { EnumDesktopWindows(desktop, Some(fn1), 666isize) };
     if enum_windows_rc == 0 {
-        let errormsg = GetLastErrorEx();
+        let errormsg = get_last_error_ex();
 
-        eprintln!("EnumDesktopWindows failed: {:?}", errormsg);
+        eprintln!("EnumDesktopWindows failed: {}", errormsg);
         return;
     }
 
     // EnumDesktopWindows()
 }
-fn GetLastErrorEx() -> String {
+
+fn get_last_error_ex() -> String {
     use std::ptr;
     use winapi::um::errhandlingapi::GetLastError;
     use winapi::um::winbase;
     use winapi::um::winbase::FormatMessageW;
     let err = unsafe { GetLastError() };
-    use winapi::um::winnt::WCHAR;
-    let msg: *mut WCHAR = ptr::null_mut();
     use winapi::ctypes::c_char;
-    use winapi::vc::vadefs::va_list;
     let mut valistx = ptr::null_mut::<c_char>();
 
     let mut buffer: LPWSTR = ptr::null_mut();
@@ -60,16 +61,14 @@ fn GetLastErrorEx() -> String {
         )
     };
     let slice = unsafe { std::slice::from_raw_parts(buffer, charcount as usize) };
-    let xx = OsString::from_wide(slice);
-    unsafe { LocalFree(buffer as *mut winapi::ctypes::c_void) };
+    let osstring = OsString::from_wide(slice);
 
-    eprintln!("get_last_error char count: {}", charcount);
     if charcount == 0 {
         panic!("GetLastError failed.");
     }
-    xx.into_string().expect("Kan ikke faa string fra OsString?")
-}
+    unsafe { LocalFree(buffer as *mut winapi::ctypes::c_void) };
 
-unsafe extern "system" fn fn1(_: HWND, _: LPARAM) -> BOOL {
-    0
+    osstring
+        .into_string()
+        .expect("Kan ikke faa string fra OsString?")
 }
