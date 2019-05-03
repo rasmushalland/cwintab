@@ -1,6 +1,7 @@
 use winapi::shared::minwindef::BOOL;
 use winapi::shared::minwindef::LPARAM;
 use winapi::shared::windef::HWND;
+use winapi::um::winbase::LocalFree;
 use winapi::um::winnt::LPWSTR;
 
 fn main() {
@@ -23,7 +24,7 @@ fn main() {
         return;
     }
     let enum_windows_rc = unsafe { EnumDesktopWindows(desktop, Some(fn1), 666isize) };
-    if enum_windows_rc == 0 {
+    fn GetLastErrorEx() -> String {
         let err = unsafe { GetLastError() };
         use winapi::um::winnt::WCHAR;
         let msg: *mut WCHAR = ptr::null_mut();
@@ -44,20 +45,22 @@ fn main() {
                 err,
                 0,
                 (&mut buffer as *mut LPWSTR) as LPWSTR,
-                // msg,
                 500,
                 &mut valistx,
             )
         };
         let slice = unsafe { std::slice::from_raw_parts(buffer, charcount as usize) };
         let xx = OsString::from_wide(slice);
+        unsafe { LocalFree(buffer as *mut winapi::ctypes::c_void) };
 
         eprintln!("get_last_error char count: {}", charcount);
         if charcount == 0 {
-            eprintln!("GetLastError failed:");
-            return;
+            panic!("GetLastError failed.");
         }
-        let errormsg =xx.into_string();
+        xx.into_string().expect("Kan ikke faa string fra OsString?")
+    }
+    if enum_windows_rc == 0 {
+        let errormsg = GetLastErrorEx();
 
         eprintln!("EnumDesktopWindows failed: {:?}", errormsg);
         return;
