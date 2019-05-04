@@ -43,42 +43,26 @@ fn main() {
         if title.len() == 0 {
             return 1;
         }
-        println!("Some title: {}", title);
         let phandle = GetProcessHandleFromHwnd(hwnd);
         if phandle == std::ptr::null_mut() {
-            eprintln!("GetProcessHandleFromHwnd failed: {}", get_last_error_ex());
+            // Der er 10-50 af disse. Fejler med 'Access denied', og vinduerne
+            // er ikke interessant, og oftest ikke rigtige vinduer.
             return 1;
         }
 
-        use winapi::um::processthreadsapi;
-        let procid = processthreadsapi::GetProcessId(phandle);
-        println!("process id: {}", procid);
+        // use winapi::um::processthreadsapi;
+        // let procid = processthreadsapi::GetProcessId(phandle);
 
-
-        // winapi::um::winbase::QueryFullProcessImageNameW(phandle, 0, )
-        let cc = winapi::um::psapi::GetProcessImageFileNameW(phandle, &mut buf[0], buf.len() as u32);
+        let cc =
+            winapi::um::psapi::GetProcessImageFileNameW(phandle, &mut buf[0], buf.len() as u32);
         let processfilename = OsString::from_wide(&buf[0..cc as usize]);
         let exepath = processfilename
             .into_string()
             .expect("Conv osstring -> String fejlede");
-        println!("Process file name: {}", exepath);
-
-        // Hent modulnavn for hwnd-ens proces.
-        use winapi::um::libloaderapi::GetModuleFileNameW;
-        let cc = GetModuleFileNameW(
-            phandle as winapi::shared::minwindef::HMODULE,
-            &mut buf[0],
-            buf.len() as u32,
-        );
-        if cc == 0 {
-            eprintln!("GetModuleFileNameW gav 0 tegn: {}", get_last_error_ex());
+        if !exepath.ends_with("chrome.exe") {
             return 1;
         }
-        let osstring2 = OsString::from_wide(&buf[0..cc as usize]);
-        let exepath = osstring2
-            .into_string()
-            .expect("Conv osstring -> String fejlede");
-        println!("exe path: {}", exepath);
+        println!("Some title: {}", title);
 
         let mut cbs = lp as *mut CallbackState;
         (*cbs).windows.push(title);
@@ -98,8 +82,6 @@ fn main() {
         eprintln!("EnumDesktopWindows failed: {}", errormsg);
         return;
     }
-
-    // EnumDesktopWindows()
 }
 
 fn get_last_error_ex() -> String {
