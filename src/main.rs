@@ -80,6 +80,10 @@ unsafe extern "system" fn enum_win_cb_raw(hwnd: HWND, lp: LPARAM) -> BOOL {
 }
 
 fn focus_window(hwnd: HWND) -> Result<(), String> {
+    let rc = unsafe { winapi::um::winuser::ShowWindow(hwnd, winapi::um::winuser::SW_RESTORE) };
+    if rc == 0 {
+        return Err(format!("ShowWindow failed: {}", get_last_error_ex()));
+    }
     let rc = unsafe { winapi::um::winuser::BringWindowToTop(hwnd) };
     if rc == 0 {
         return Err(format!("BringWindowToTop failed: {}", get_last_error_ex()));
@@ -118,18 +122,14 @@ fn main() -> Result<(), String> {
     }
 
     let options = cbstate.windows.into_iter().take(10).collect::<Vec<_>>();
-    for (idx, (title, hwnd)) in options.iter().enumerate() {
+    for (idx, (title, _)) in options.iter().enumerate() {
         println!(
-            "[{:2}] Some title: {}{}{}",
+            "[{:2}] {}{}{}",
             idx + 1,
             crossterm::Colored::Fg(crossterm::Color::Yellow),
             title,
             crossterm::Colored::Fg(crossterm::Color::White)
         );
-        //     if title.contains("winapi::") && false {
-        //         println!("saetter focus...: {}", title);
-        //         break;
-        //     }
     }
     let num = loop {
         println!("Skriv tal mellem {} og {}.", 1, options.len());
@@ -144,7 +144,6 @@ fn main() -> Result<(), String> {
         };
     };
     let c = &options[num as usize - 1];
-    print!("Vindue: {}", c.0);
     if let Err(err) = focus_window(c.1 as *mut winapi::shared::windef::HWND__) {
         eprintln!("Kunne ikke saette fokus: {} ", err);
     }
