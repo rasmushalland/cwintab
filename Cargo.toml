@@ -6,4 +6,5 @@ edition = "2018"
 
 [dependencies]
 winapi ={ version = "0.*", features = ["winuser", "winbase", "processthreadsapi", "errhandlingapi", "libloaderapi", "psapi", "handleapi"] }
+crossterm = "0.8"
 

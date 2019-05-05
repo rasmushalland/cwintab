@@ -79,7 +79,20 @@ unsafe extern "system" fn enum_win_cb_raw(hwnd: HWND, lp: LPARAM) -> BOOL {
     }
 }
 
-fn main() {
+fn focus_window(hwnd: HWND) -> Result<(), String> {
+    let rc = unsafe { winapi::um::winuser::BringWindowToTop(hwnd) };
+    if rc == 0 {
+        return Err(format!("BringWindowToTop failed: {}", get_last_error_ex()));
+    }
+
+    let rc = unsafe { winapi::um::winuser::SetForegroundWindow(hwnd) };
+    if rc == 0 {
+        return Err(format!("SetForegroundWindow fejlede: {}", get_last_error_ex()));
+    }
+    Ok(())
+}
+
+fn main() -> Result<(), String> {
     use winapi::um::processthreadsapi::GetCurrentThreadId;
     use winapi::um::winuser::EnumDesktopWindows;
     use winapi::um::winuser::GetThreadDesktop;
@@ -89,7 +102,7 @@ fn main() {
     let desktop = unsafe { GetThreadDesktop(curthreadid) };
     if desktop == ptr::null_mut() {
         eprintln!("GetThreadDesktop failed.");
-        return;
+        return Ok(());
     }
     let mut cbstate = CallbackState { windows: vec![] };
     let enum_windows_rc = unsafe {
@@ -101,26 +114,41 @@ fn main() {
     };
     if enum_windows_rc == 0 {
         eprintln!("EnumDesktopWindows failed: {}", get_last_error_ex());
-        return;
+        return Ok(());
     }
-    for (idx, (title, hwnd)) in cbstate.windows.iter().enumerate() {
-        println!("Some title: {}", title);
-        // if idx == 1 {
-        if title.contains("winapi::") {
-            println!("saetter focus...: {}", title);
-            let rc = unsafe { winapi::um::winuser::BringWindowToTop(*hwnd) };
-            if rc == 0 {
-                eprintln!("BringWindowToTop failed: {}", get_last_error_ex());
-                continue;
-            }
 
-            let rc = unsafe { winapi::um::winuser::SetForegroundWindow(*hwnd) };
-            if rc == 0 {
-                eprintln!("SetForegroundWindow fejlede: {}", get_last_error_ex());
-            }
-            break;
-        }
+    let options = cbstate.windows.into_iter().take(10).collect::<Vec<_>>();
+    for (idx, (title, hwnd)) in options.iter().enumerate() {
+        println!(
+            "[{:2}] Some title: {}{}{}",
+            idx + 1,
+            crossterm::Colored::Fg(crossterm::Color::Yellow),
+            title,
+            crossterm::Colored::Fg(crossterm::Color::White)
+        );
+        //     if title.contains("winapi::") && false {
+        //         println!("saetter focus...: {}", title);
+        //         break;
+        //     }
     }
+    let num = loop {
+        println!("Skriv tal mellem {} og {}.", 1, options.len());
+        let choice = crossterm::input().read_line().expect("Kunne ikke laese input.");
+        match choice.parse::<u32>() {
+            Ok(v) => {
+                if v >= 1 && v as usize <= options.len() {
+                    break v;
+                }
+            }
+            Err(_) => (),
+        };
+    };
+    let c = &options[num as usize - 1];
+    print!("Vindue: {}", c.0);
+    if let Err(err) = focus_window(c.1 as *mut winapi::shared::windef::HWND__) {
+        eprintln!("Kunne ikke saette fokus: {} ", err);
+    }
+    Ok(())
 }
 
 fn get_last_error_ex() -> String {
