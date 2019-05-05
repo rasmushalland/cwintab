@@ -36,9 +36,7 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
     let cc = unsafe { winapi::um::winuser::GetWindowTextW(hwnd, &mut buf[0], buf.len() as i32) };
     use std::os::windows::prelude::*;
     let osstring = OsString::from_wide(&buf[0..cc as usize]);
-    let title = osstring
-        .into_string()
-        .expect("Conv osstring -> String fejlede");
+    let title = osstring.into_string().expect("Conv osstring -> String fejlede");
     if title.len() == 0 {
         return true;
     }
@@ -63,9 +61,7 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
         )
     };
     let processfilename = OsString::from_wide(&buf[0..cc as usize]);
-    let exepath = processfilename
-        .into_string()
-        .expect("Conv osstring -> String fejlede");
+    let exepath = processfilename.into_string().expect("Conv osstring -> String fejlede");
     if !exepath.ends_with("chrome.exe") {
         return true;
     }
@@ -153,7 +149,5 @@ fn get_last_error_ex() -> String {
     }
     unsafe { LocalFree(buffer as *mut winapi::ctypes::c_void) };
 
-    osstring
-        .into_string()
-        .expect("Kan ikke faa string fra OsString?")
+    osstring.into_string().expect("Kan ikke faa string fra OsString?")
 }
