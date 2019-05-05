@@ -26,6 +26,52 @@ impl Drop for WinHandle {
         }
     }
 }
+struct CallbackState {
+    windows: Vec<(String, HWND)>,
+}
+unsafe extern "system" fn enum_win_cb(hwnd: HWND, lp: LPARAM) -> BOOL {
+    let buf = &mut [0u16; 200];
+
+    // Hent title for hwnd.
+    let cc = winapi::um::winuser::GetWindowTextW(hwnd, &mut buf[0], buf.len() as i32);
+    use std::os::windows::prelude::*;
+    let osstring = OsString::from_wide(&buf[0..cc as usize]);
+    let title = osstring
+        .into_string()
+        .expect("Conv osstring -> String fejlede");
+    if title.len() == 0 {
+        return 1;
+    }
+    if title == "Default IME" || title == "MSCTFIME UI" {
+        return 1;
+    }
+    let prochandlex = {
+        let phandle = GetProcessHandleFromHwnd(hwnd);
+        if phandle == std::ptr::null_mut() {
+            // Der er 10-50 af disse. Fejler med 'Access denied', og vinduerne
+            // er ikke interessante, og oftest ikke rigtige vinduer.
+            return 1;
+        }
+        WinHandle::new(phandle)
+    };
+
+    let cc = winapi::um::psapi::GetProcessImageFileNameW(
+        prochandlex.handle,
+        &mut buf[0],
+        buf.len() as u32,
+    );
+    let processfilename = OsString::from_wide(&buf[0..cc as usize]);
+    let exepath = processfilename
+        .into_string()
+        .expect("Conv osstring -> String fejlede");
+    if !exepath.ends_with("chrome.exe") {
+        return 1;
+    }
+
+    let cbs: &mut CallbackState = std::mem::transmute(lp as *mut CallbackState);
+    cbs.windows.push((title, hwnd));
+    1
+}
 
 fn main() {
     use winapi::um::processthreadsapi::GetCurrentThreadId;
@@ -39,61 +85,6 @@ fn main() {
         eprintln!("GetThreadDesktop failed.");
         return;
     }
-    struct CallbackState {
-        windows: Vec<String>,
-        // hwnd: HWND,
-    }
-    unsafe extern "system" fn enum_win_cb(hwnd: HWND, lp: LPARAM) -> BOOL {
-        let buf = &mut [0u16; 200];
-
-        // Hent title for hwnd.
-        let cc = winapi::um::winuser::GetWindowTextW(hwnd, &mut buf[0], buf.len() as i32);
-        use std::os::windows::prelude::*;
-        let osstring = OsString::from_wide(&buf[0..cc as usize]);
-        let title = osstring
-            .into_string()
-            .expect("Conv osstring -> String fejlede");
-        if title.len() == 0 {
-            return 1;
-        }
-        if title == "Default IME" || title == "MSCTFIME UI" {
-            return 1;
-        }
-        let prochandlex = {
-            let phandle = GetProcessHandleFromHwnd(hwnd);
-            if phandle == std::ptr::null_mut() {
-                // Der er 10-50 af disse. Fejler med 'Access denied', og vinduerne
-                // er ikke interessante, og oftest ikke rigtige vinduer.
-                return 1;
-            }
-            WinHandle::new(phandle)
-        };
-
-        let cc = winapi::um::psapi::GetProcessImageFileNameW(
-            prochandlex.handle,
-            &mut buf[0],
-            buf.len() as u32,
-        );
-        let processfilename = OsString::from_wide(&buf[0..cc as usize]);
-        let exepath = processfilename
-            .into_string()
-            .expect("Conv osstring -> String fejlede");
-        if !exepath.ends_with("chrome.exe") {
-            return 1;
-        }
-        println!("Some title: {}", title);
-
-        let cbs: &mut CallbackState = std::mem::transmute(lp as *mut CallbackState);
-        if cbs.windows.len() == 1 {
-        // if title.contains("SetForegroundWindow") {
-            let rc = winapi::um::winuser::SetForegroundWindow(hwnd);
-            if rc == 0 {
-                eprintln!("SetForegroundWindow fejlede: {}", get_last_error_ex());
-            }
-        }
-        cbs.windows.push(title);
-        1
-    }
     let mut cbstate = CallbackState { windows: vec![] };
     let enum_windows_rc = unsafe {
         EnumDesktopWindows(
@@ -105,6 +96,17 @@ fn main() {
     if enum_windows_rc == 0 {
         eprintln!("EnumDesktopWindows failed: {}", get_last_error_ex());
         return;
+    }
+    for (idx, (title, hwnd)) in cbstate.windows.iter().enumerate() {
+        println!("Some title: {}", title);
+        if idx == 1 {
+            // if title.contains("SetForegroundWindow") {
+            println!("saetter focus...: {}", title);
+            let rc = unsafe { winapi::um::winuser::SetForegroundWindow(*hwnd) };
+            if rc == 0 {
+                eprintln!("SetForegroundWindow fejlede: {}", get_last_error_ex());
+            }
+        }
     }
 }
 
