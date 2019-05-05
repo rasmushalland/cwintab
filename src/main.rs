@@ -10,6 +10,23 @@ extern "system" {
     fn GetProcessHandleFromHwnd(hwdn: HWND) -> winapi::um::winnt::HANDLE;
 }
 
+struct WinHandle {
+    handle: *mut winapi::ctypes::c_void,
+}
+impl WinHandle {
+    fn new(handle: *mut winapi::ctypes::c_void) -> WinHandle {
+        WinHandle { handle: handle }
+    }
+}
+impl Drop for WinHandle {
+    fn drop(&mut self) {
+        let rc = unsafe { winapi::um::handleapi::CloseHandle(self.handle) };
+        if rc == 0 {
+            eprintln!("CloseHandle failed: {}", get_last_error_ex());
+        }
+    }
+}
+
 fn main() {
     println!("Hello, world!");
 
@@ -30,7 +47,7 @@ fn main() {
         windows: Vec<String>,
         // hwnd: HWND,
     }
-    unsafe extern "system" fn fn1(hwnd: HWND, lp: LPARAM) -> BOOL {
+    unsafe extern "system" fn enum_win_cb(hwnd: HWND, lp: LPARAM) -> BOOL {
         let buf = &mut [0u16; 200];
 
         // Hent title for hwnd.
@@ -43,18 +60,21 @@ fn main() {
         if title.len() == 0 {
             return 1;
         }
-        let phandle = GetProcessHandleFromHwnd(hwnd);
-        if phandle == std::ptr::null_mut() {
-            // Der er 10-50 af disse. Fejler med 'Access denied', og vinduerne
-            // er ikke interessant, og oftest ikke rigtige vinduer.
-            return 1;
-        }
+        let prochandlex = {
+            let phandle = GetProcessHandleFromHwnd(hwnd);
+            if phandle == std::ptr::null_mut() {
+                // Der er 10-50 af disse. Fejler med 'Access denied', og vinduerne
+                // er ikke interessante, og oftest ikke rigtige vinduer.
+                return 1;
+            }
+            WinHandle::new(phandle)
+        };
 
-        // use winapi::um::processthreadsapi;
-        // let procid = processthreadsapi::GetProcessId(phandle);
-
-        let cc =
-            winapi::um::psapi::GetProcessImageFileNameW(phandle, &mut buf[0], buf.len() as u32);
+        let cc = winapi::um::psapi::GetProcessImageFileNameW(
+            prochandlex.handle,
+            &mut buf[0],
+            buf.len() as u32,
+        );
         let processfilename = OsString::from_wide(&buf[0..cc as usize]);
         let exepath = processfilename
             .into_string()
@@ -72,7 +92,7 @@ fn main() {
     let enum_windows_rc = unsafe {
         EnumDesktopWindows(
             desktop,
-            Some(fn1),
+            Some(enum_win_cb),
             &mut cbstate as *mut CallbackState as isize,
         )
     };
