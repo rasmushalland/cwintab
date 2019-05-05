@@ -29,48 +29,58 @@ impl Drop for WinHandle {
 struct CallbackState {
     windows: Vec<(String, HWND)>,
 }
-unsafe extern "system" fn enum_win_cb(hwnd: HWND, lp: LPARAM) -> BOOL {
+fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
     let buf = &mut [0u16; 200];
 
     // Hent title for hwnd.
-    let cc = winapi::um::winuser::GetWindowTextW(hwnd, &mut buf[0], buf.len() as i32);
+    let cc = unsafe { winapi::um::winuser::GetWindowTextW(hwnd, &mut buf[0], buf.len() as i32) };
     use std::os::windows::prelude::*;
     let osstring = OsString::from_wide(&buf[0..cc as usize]);
     let title = osstring
         .into_string()
         .expect("Conv osstring -> String fejlede");
     if title.len() == 0 {
-        return 1;
+        return true;
     }
     if title == "Default IME" || title == "MSCTFIME UI" {
-        return 1;
+        return true;
     }
     let prochandlex = {
-        let phandle = GetProcessHandleFromHwnd(hwnd);
+        let phandle = unsafe { GetProcessHandleFromHwnd(hwnd) };
         if phandle == std::ptr::null_mut() {
             // Der er 10-50 af disse. Fejler med 'Access denied', og vinduerne
             // er ikke interessante, og oftest ikke rigtige vinduer.
-            return 1;
+            return true;
         }
         WinHandle::new(phandle)
     };
 
-    let cc = winapi::um::psapi::GetProcessImageFileNameW(
-        prochandlex.handle,
-        &mut buf[0],
-        buf.len() as u32,
-    );
+    let cc = unsafe {
+        winapi::um::psapi::GetProcessImageFileNameW(
+            prochandlex.handle,
+            &mut buf[0],
+            buf.len() as u32,
+        )
+    };
     let processfilename = OsString::from_wide(&buf[0..cc as usize]);
     let exepath = processfilename
         .into_string()
         .expect("Conv osstring -> String fejlede");
     if !exepath.ends_with("chrome.exe") {
-        return 1;
+        return true;
     }
 
-    let cbs: &mut CallbackState = std::mem::transmute(lp as *mut CallbackState);
     cbs.windows.push((title, hwnd));
-    1
+    true
+}
+
+unsafe extern "system" fn enum_win_cb_raw(hwnd: HWND, lp: LPARAM) -> BOOL {
+    let cbs: &mut CallbackState = std::mem::transmute(lp as *mut CallbackState);
+    if enum_windows_cb(cbs, hwnd) {
+        1
+    } else {
+        0
+    }
 }
 
 fn main() {
@@ -89,7 +99,7 @@ fn main() {
     let enum_windows_rc = unsafe {
         EnumDesktopWindows(
             desktop,
-            Some(enum_win_cb),
+            Some(enum_win_cb_raw),
             &mut cbstate as *mut CallbackState as isize,
         )
     };
