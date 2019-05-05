@@ -105,13 +105,20 @@ fn main() {
     }
     for (idx, (title, hwnd)) in cbstate.windows.iter().enumerate() {
         println!("Some title: {}", title);
-        if idx == 1 {
-            // if title.contains("SetForegroundWindow") {
+        // if idx == 1 {
+        if title.contains("winapi::") {
             println!("saetter focus...: {}", title);
+            let rc = unsafe { winapi::um::winuser::BringWindowToTop(*hwnd) };
+            if rc == 0 {
+                eprintln!("BringWindowToTop failed: {}", get_last_error_ex());
+                continue;
+            }
+
             let rc = unsafe { winapi::um::winuser::SetForegroundWindow(*hwnd) };
             if rc == 0 {
                 eprintln!("SetForegroundWindow fejlede: {}", get_last_error_ex());
             }
+            break;
         }
     }
 }
