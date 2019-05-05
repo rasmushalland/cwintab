@@ -82,10 +82,14 @@ fn main() {
         if !exepath.ends_with("chrome.exe") {
             return 1;
         }
+        if title == "Default IME" || title == "MSCTFIME UI" {
+            return 1;
+        }
         println!("Some title: {}", title);
 
-        let mut cbs = lp as *mut CallbackState;
-        (*cbs).windows.push(title);
+        let cbs: &mut CallbackState = std::mem::transmute(lp as *mut CallbackState);
+
+        cbs.windows.push(title);
         1
     }
     let mut cbstate = CallbackState { windows: vec![] };
@@ -97,9 +101,7 @@ fn main() {
         )
     };
     if enum_windows_rc == 0 {
-        let errormsg = get_last_error_ex();
-
-        eprintln!("EnumDesktopWindows failed: {}", errormsg);
+        eprintln!("EnumDesktopWindows failed: {}", get_last_error_ex());
         return;
     }
 }
