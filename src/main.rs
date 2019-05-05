@@ -28,13 +28,9 @@ impl Drop for WinHandle {
 }
 
 fn main() {
-    println!("Hello, world!");
-
-    use winapi::shared::windef::HDESK;
     use winapi::um::processthreadsapi::GetCurrentThreadId;
     use winapi::um::winuser::EnumDesktopWindows;
     use winapi::um::winuser::GetThreadDesktop;
-    use winapi::um::winuser::WNDENUMPROC;
 
     use std::ptr;
     let curthreadid = unsafe { GetCurrentThreadId() };
@@ -60,6 +56,9 @@ fn main() {
         if title.len() == 0 {
             return 1;
         }
+        if title == "Default IME" || title == "MSCTFIME UI" {
+            return 1;
+        }
         let prochandlex = {
             let phandle = GetProcessHandleFromHwnd(hwnd);
             if phandle == std::ptr::null_mut() {
@@ -82,13 +81,16 @@ fn main() {
         if !exepath.ends_with("chrome.exe") {
             return 1;
         }
-        if title == "Default IME" || title == "MSCTFIME UI" {
-            return 1;
-        }
         println!("Some title: {}", title);
 
         let cbs: &mut CallbackState = std::mem::transmute(lp as *mut CallbackState);
-
+        if cbs.windows.len() == 1 {
+        // if title.contains("SetForegroundWindow") {
+            let rc = winapi::um::winuser::SetForegroundWindow(hwnd);
+            if rc == 0 {
+                eprintln!("SetForegroundWindow fejlede: {}", get_last_error_ex());
+            }
+        }
         cbs.windows.push(title);
         1
     }
