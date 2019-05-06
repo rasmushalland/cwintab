@@ -10,17 +10,15 @@ extern "system" {
     fn GetProcessHandleFromHwnd(hwdn: HWND) -> winapi::um::winnt::HANDLE;
 }
 
-struct WinHandle {
-    handle: *mut winapi::ctypes::c_void,
-}
+struct WinHandle(*mut winapi::ctypes::c_void);
 impl WinHandle {
     fn new(handle: *mut winapi::ctypes::c_void) -> WinHandle {
-        WinHandle { handle: handle }
+        WinHandle(handle)
     }
 }
 impl Drop for WinHandle {
     fn drop(&mut self) {
-        let rc = unsafe { winapi::um::handleapi::CloseHandle(self.handle) };
+        let rc = unsafe { winapi::um::handleapi::CloseHandle(self.0) };
         if rc == 0 {
             eprintln!("CloseHandle failed: {}", get_last_error_ex());
         }
@@ -55,7 +53,7 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
 
     let cc = unsafe {
         winapi::um::psapi::GetProcessImageFileNameW(
-            prochandlex.handle,
+            prochandlex.0,
             &mut buf[0],
             buf.len() as u32,
         )
