@@ -10,13 +10,13 @@ extern "system" {
     fn GetProcessHandleFromHwnd(hwdn: HWND) -> winapi::um::winnt::HANDLE;
 }
 
-struct WinHandle(*mut winapi::ctypes::c_void);
-impl WinHandle {
-    fn new(handle: *mut winapi::ctypes::c_void) -> WinHandle {
-        WinHandle(handle)
+struct WinHandleDrop(*mut winapi::ctypes::c_void);
+impl WinHandleDrop {
+    fn new(handle: *mut winapi::ctypes::c_void) -> WinHandleDrop {
+        WinHandleDrop(handle)
     }
 }
-impl Drop for WinHandle {
+impl Drop for WinHandleDrop {
     fn drop(&mut self) {
         let rc = unsafe { winapi::um::handleapi::CloseHandle(self.0) };
         if rc == 0 {
@@ -24,8 +24,13 @@ impl Drop for WinHandle {
         }
     }
 }
+struct CbWindowInfo {
+    title: String,
+    hwnd: HWND,
+    exepath: String,
+}
 struct CallbackState {
-    windows: Vec<(String, HWND)>,
+    windows: Vec<CbWindowInfo>,
 }
 fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
     let buf = &mut [0u16; 200];
@@ -48,15 +53,11 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
             // er ikke interessante, og oftest ikke rigtige vinduer.
             return true;
         }
-        WinHandle::new(phandle)
+        WinHandleDrop::new(phandle)
     };
 
     let cc = unsafe {
-        winapi::um::psapi::GetProcessImageFileNameW(
-            prochandlex.0,
-            &mut buf[0],
-            buf.len() as u32,
-        )
+        winapi::um::psapi::GetProcessImageFileNameW(prochandlex.0, &mut buf[0], buf.len() as u32)
     };
     let processfilename = OsString::from_wide(&buf[0..cc as usize]);
     let exepath = processfilename.into_string().expect("Conv osstring -> String fejlede");
@@ -64,7 +65,7 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
         return true;
     }
 
-    cbs.windows.push((title, hwnd));
+    cbs.windows.push(CbWindowInfo { title, hwnd, exepath });
     true
 }
 
@@ -120,12 +121,12 @@ fn main() -> Result<(), String> {
     }
 
     let options = cbstate.windows.into_iter().take(10).collect::<Vec<_>>();
-    for (idx, (title, _)) in options.iter().enumerate() {
+    for (idx, winfo) in options.iter().enumerate() {
         println!(
             "[{:2}] {}{}{}",
             idx + 1,
             crossterm::Colored::Fg(crossterm::Color::Yellow),
-            title,
+            winfo.title,
             crossterm::Colored::Fg(crossterm::Color::White)
         );
     }
@@ -142,7 +143,7 @@ fn main() -> Result<(), String> {
         };
     };
     let c = &options[num as usize - 1];
-    if let Err(err) = focus_window(c.1 as *mut winapi::shared::windef::HWND__) {
+    if let Err(err) = focus_window(c.hwnd as *mut winapi::shared::windef::HWND__) {
         eprintln!("Kunne ikke saette fokus: {} ", err);
     }
     Ok(())
