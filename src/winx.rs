@@ -1,4 +1,3 @@
-
 use winapi::shared::minwindef::ATOM;
 use winapi::shared::minwindef::DWORD;
 use winapi::shared::minwindef::UINT;
@@ -49,26 +48,37 @@ pub struct WindowInfo {
     wCreatorVersion: WORD,
 }
 
+impl Default for WindowInfo {
+    fn default() -> WindowInfo {
+        WindowInfo {
+            cbSize: std::mem::size_of::<WindowInfo>() as u32,
+            rcWindow: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+            rcClient: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+            dwStyle: WinStyle::default(),
+            dwExStyle: 0,
+            dwWindowStatus: 0,
+            cxWindowBorders: 0,
+            cyWindowBorders: 0,
+            atomWindowType: 0,
+            wCreatorVersion: 0,
+        }
+    }
+}
+
 #[link(name = "user32")]
 extern "system" {
     fn GetWindowInfo(hwdn: HWND, winfo: *mut WindowInfo) -> BOOL;
 }
 
 pub(crate) fn get_window_info(hwnd: HWND) -> Result<WindowInfo, String> {
-    let mut wi = WindowInfo {
-        cbSize: std::mem::size_of::<WindowInfo>() as u32,
-        rcWindow: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-        rcClient: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-        dwStyle: WinStyle::default(),
-        dwExStyle: 0,
-        dwWindowStatus: 0,
-        cxWindowBorders: 0,
-        cyWindowBorders: 0,
-        atomWindowType: 0,
-        wCreatorVersion: 0,
-    };
+    let mut wi = WindowInfo::default();
     match unsafe { GetWindowInfo(hwnd, &mut wi as *mut WindowInfo) } {
         0 => Err(get_last_error_ex()),
         _ => Ok(wi),
     }
+}
+
+pub(crate) fn is_window_minimized(hwnd: HWND) -> Result<bool, String> {
+    let wi = get_window_info(hwnd)?;
+    Ok((wi.dwStyle & WinStyle::WS_MINIMIZE).bits() != 0)
 }

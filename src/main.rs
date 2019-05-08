@@ -1,11 +1,9 @@
 #![allow(non_snake_case)]
 
-
 #[macro_use]
 extern crate bitflags;
 
 mod winx;
-
 
 use std::ffi::OsString;
 use winapi::shared::minwindef::BOOL;
@@ -92,10 +90,13 @@ unsafe extern "system" fn enum_win_cb_raw(hwnd: HWND, lp: LPARAM) -> BOOL {
 }
 
 fn focus_window(hwnd: HWND) -> Result<(), String> {
-    // let rc = unsafe { winapi::um::winuser::ShowWindow(hwnd, 0) };
-    // if rc == 0 {
-    //     return Err(format!("ShowWindow failed: {}", get_last_error_ex()));
-    // }
+    if winx::is_window_minimized(hwnd)? {
+        const SW_RESTORE : i32 = 9;
+        let rc = unsafe { winapi::um::winuser::ShowWindow(hwnd, SW_RESTORE) };
+        if rc == 0 {
+            return Err(format!("ShowWindow failed: {}", get_last_error_ex()));
+        }
+    }
     let rc = unsafe { winapi::um::winuser::BringWindowToTop(hwnd) };
     if rc == 0 {
         return Err(format!("BringWindowToTop failed: {}", get_last_error_ex()));
