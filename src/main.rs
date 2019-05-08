@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use std::ffi::OsString;
 use winapi::shared::minwindef::BOOL;
 use winapi::shared::minwindef::LPARAM;
@@ -24,6 +26,7 @@ impl Drop for WinHandleDrop {
         }
     }
 }
+#[derive(Clone)]
 struct CbWindowInfo {
     title: String,
     hwnd: HWND,
@@ -61,9 +64,12 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
     };
     let processfilename = OsString::from_wide(&buf[0..cc as usize]);
     let exepath = processfilename.into_string().expect("Conv osstring -> String fejlede");
-    if !exepath.ends_with("chrome.exe") {
-        return true;
-    }
+    // if !exepath.ends_with("chrome.exe") {
+    //     return true;
+    // }
+    let mut exepath =
+        exepath.rsplit('\\').nth(0).expect("exepath split by \\ has no elements.").to_string();
+    exepath.make_ascii_lowercase();
 
     cbs.windows.push(CbWindowInfo { title, hwnd, exepath });
     true
@@ -79,10 +85,10 @@ unsafe extern "system" fn enum_win_cb_raw(hwnd: HWND, lp: LPARAM) -> BOOL {
 }
 
 fn focus_window(hwnd: HWND) -> Result<(), String> {
-    let rc = unsafe { winapi::um::winuser::ShowWindow(hwnd, winapi::um::winuser::SW_RESTORE) };
-    if rc == 0 {
-        return Err(format!("ShowWindow failed: {}", get_last_error_ex()));
-    }
+    // let rc = unsafe { winapi::um::winuser::ShowWindow(hwnd, 0) };
+    // if rc == 0 {
+    //     return Err(format!("ShowWindow failed: {}", get_last_error_ex()));
+    // }
     let rc = unsafe { winapi::um::winuser::BringWindowToTop(hwnd) };
     if rc == 0 {
         return Err(format!("BringWindowToTop failed: {}", get_last_error_ex()));
@@ -93,6 +99,74 @@ fn focus_window(hwnd: HWND) -> Result<(), String> {
         return Err(format!("SetForegroundWindow fejlede: {}", get_last_error_ex()));
     }
     Ok(())
+}
+
+use winapi::shared::minwindef::ATOM;
+use winapi::shared::minwindef::DWORD;
+use winapi::shared::minwindef::UINT;
+use winapi::shared::minwindef::WORD;
+// use winapi::shared::minwindef::BOOL;
+use winapi::shared::windef::RECT;
+
+#[macro_use]
+extern crate bitflags;
+
+bitflags! {
+    // https://docs.microsoft.com/en-us/windows/desktop/winmsg/window-styles
+    #[derive(Default)]
+    struct WinStyle : u32 {
+       const WS_DISABLED = 0x08000000;
+       const WS_MINIMIZE = 0x20000000;
+       const WS_POPUP = 0x80000000;
+       const WS_MAXIMIZE = 0x01000000;
+       const WS_GROUP = 0x00020000;
+       const WS_DLGFRAME = 0x00400000;
+       const WS_CHILD = 0x40000000;
+       const WS_SIZEBOX = 0x00040000;
+       const WS_CLIPSIBLINGS = 0x04000000;
+       const WS_VISIBLE = 0x10000000;
+    }
+}
+
+const WS_DISABLED: DWORD = 0x08000000;
+
+#[repr(C)]
+struct WindowInfo {
+    cbSize: DWORD,
+    rcWindow: RECT,
+    rcClient: RECT,
+    dwStyle: WinStyle,
+    // dwStyle: DWORD,
+    dwExStyle: DWORD,
+    dwWindowStatus: DWORD,
+    cxWindowBorders: UINT,
+    cyWindowBorders: UINT,
+    atomWindowType: ATOM,
+    wCreatorVersion: WORD,
+}
+
+#[link(name = "user32")]
+extern "system" {
+    fn GetWindowInfo(hwdn: HWND, winfo: *mut WindowInfo) -> BOOL;
+}
+
+fn get_window_info(hwnd: HWND) -> Result<WindowInfo, String> {
+    let mut wi = WindowInfo {
+        cbSize: std::mem::size_of::<WindowInfo>() as u32,
+        rcWindow: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+        rcClient: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+        dwStyle: WinStyle::default(),
+        dwExStyle: 0,
+        dwWindowStatus: 0,
+        cxWindowBorders: 0,
+        cyWindowBorders: 0,
+        atomWindowType: 0,
+        wCreatorVersion: 0,
+    };
+    match unsafe { GetWindowInfo(hwnd, &mut wi as *mut WindowInfo) } {
+        0 => Err(get_last_error_ex()),
+        _ => Ok(wi),
+    }
 }
 
 fn main() -> Result<(), String> {
@@ -120,14 +194,46 @@ fn main() -> Result<(), String> {
         return Ok(());
     }
 
-    let options = cbstate.windows.into_iter().take(10).collect::<Vec<_>>();
-    for (idx, winfo) in options.iter().enumerate() {
+    cbstate.windows = cbstate
+        .windows
+        .into_iter()
+        .filter(|winfo| match get_window_info(winfo.hwnd) {
+            Ok(info) => (info.dwStyle & (WinStyle::WS_DISABLED | WinStyle::WS_POPUP)).bits() == 0,
+            Err(_) => true,
+        })
+        .collect();
+
+    use itertools::Itertools;
+    let mut options: Vec<CbWindowInfo> = Vec::new();
+    for winfo in cbstate.windows.into_iter() {
+        options.push(winfo);
+    }
+    // for (_key, group) in &cbstate.windows.iter().map(|v| (&v.exepath, v)).into_group_map() {
+    //     if group.len() > 1 {
+    //         for winfo in group {
+    //             options.push((*winfo).clone());
+    //         }
+    //     }
+    // }
+
+    // let options = cbstate.windows.into_iter().take(10).collect::<Vec<_>>();
+    for (idx, winfo) in options.iter().take(150).enumerate() {
+        let styledump = match get_window_info(winfo.hwnd) {
+            Ok(info) => format!("styles: {:?}", info.dwStyle),
+            Err(msg) => msg,
+        };
+        use crossterm::{Attribute, Color, Colored, Colorize, Styler};
+
         println!(
-            "[{:2}] {}{}{}",
+            "[{:2}] {}{}{} ({}{}{}) {}",
             idx + 1,
             crossterm::Colored::Fg(crossterm::Color::Yellow),
             winfo.title,
-            crossterm::Colored::Fg(crossterm::Color::White)
+            crossterm::Colored::Fg(crossterm::Color::White),
+            crossterm::Colored::Fg(crossterm::Color::Blue),
+            winfo.exepath,
+            crossterm::Colored::Fg(crossterm::Color::White),
+            styledump,
         );
     }
     let num = loop {
