@@ -82,3 +82,61 @@ pub(crate) fn is_window_minimized(hwnd: HWND) -> Result<bool, String> {
     let wi = get_window_info(hwnd)?;
     Ok((wi.dwStyle & WinStyle::WS_MINIMIZE).bits() != 0)
 }
+
+
+pub fn focus_window(hwnd: HWND) -> Result<(), String> {
+    if winx::is_window_minimized(hwnd)? {
+        const SW_RESTORE: i32 = 9;
+        let rc = unsafe { winapi::um::winuser::ShowWindow(hwnd, SW_RESTORE) };
+        if rc == 0 {
+            return Err(format!("ShowWindow failed: {}", get_last_error_ex()));
+        }
+    }
+    let rc = unsafe { winapi::um::winuser::BringWindowToTop(hwnd) };
+    if rc == 0 {
+        return Err(format!("BringWindowToTop failed: {}", get_last_error_ex()));
+    }
+
+    let rc = unsafe { winapi::um::winuser::SetForegroundWindow(hwnd) };
+    if rc == 0 {
+        return Err(format!("SetForegroundWindow fejlede: {}", get_last_error_ex()));
+    }
+    Ok(())
+}
+
+
+pub fn get_last_error_ex() -> String {
+    use std::ptr;
+    use winapi::um::errhandlingapi::GetLastError;
+    use winapi::um::winbase;
+    use winapi::um::winbase::FormatMessageW;
+    let err = unsafe { GetLastError() };
+    use winapi::ctypes::c_char;
+    let mut valistx = ptr::null_mut::<c_char>();
+
+    let mut buffer: LPWSTR = ptr::null_mut();
+    use std::os::windows::prelude::*;
+
+    let charcount = unsafe {
+        FormatMessageW(
+            winbase::FORMAT_MESSAGE_ALLOCATE_BUFFER
+                | winbase::FORMAT_MESSAGE_FROM_SYSTEM
+                | winbase::FORMAT_MESSAGE_IGNORE_INSERTS,
+            ptr::null(),
+            err,
+            0,
+            (&mut buffer as *mut LPWSTR) as LPWSTR,
+            500,
+            &mut valistx,
+        )
+    };
+    let slice = unsafe { std::slice::from_raw_parts(buffer, charcount as usize) };
+    let osstring = OsString::from_wide(slice);
+
+    if charcount == 0 {
+        panic!("GetLastError failed.");
+    }
+    unsafe { LocalFree(buffer as *mut winapi::ctypes::c_void) };
+
+    osstring.into_string().expect("Kan ikke faa string fra OsString?")
+}

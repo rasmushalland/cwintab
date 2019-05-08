@@ -27,7 +27,7 @@ impl Drop for WinHandleDrop {
     fn drop(&mut self) {
         let rc = unsafe { winapi::um::handleapi::CloseHandle(self.0) };
         if rc == 0 {
-            eprintln!("CloseHandle failed: {}", get_last_error_ex());
+            eprintln!("CloseHandle failed: {}", winx::get_last_error_ex());
         }
     }
 }
@@ -49,9 +49,6 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
     let osstring = OsString::from_wide(&buf[0..cc as usize]);
     let title = osstring.into_string().expect("Conv osstring -> String fejlede");
     if title.len() == 0 {
-        return true;
-    }
-    if title == "Default IME" || title == "MSCTFIME UI" {
         return true;
     }
     let prochandlex = {
@@ -81,32 +78,11 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
 }
 
 unsafe extern "system" fn enum_win_cb_raw(hwnd: HWND, lp: LPARAM) -> BOOL {
-    let cbs: &mut CallbackState = std::mem::transmute(lp as *mut CallbackState);
-    if enum_windows_cb(cbs, hwnd) {
-        1
-    } else {
-        0
+    let cbs = std::mem::transmute(lp as *mut CallbackState);
+    match enum_windows_cb(cbs, hwnd) {
+        true => 1,
+        false => 0,
     }
-}
-
-fn focus_window(hwnd: HWND) -> Result<(), String> {
-    if winx::is_window_minimized(hwnd)? {
-        const SW_RESTORE : i32 = 9;
-        let rc = unsafe { winapi::um::winuser::ShowWindow(hwnd, SW_RESTORE) };
-        if rc == 0 {
-            return Err(format!("ShowWindow failed: {}", get_last_error_ex()));
-        }
-    }
-    let rc = unsafe { winapi::um::winuser::BringWindowToTop(hwnd) };
-    if rc == 0 {
-        return Err(format!("BringWindowToTop failed: {}", get_last_error_ex()));
-    }
-
-    let rc = unsafe { winapi::um::winuser::SetForegroundWindow(hwnd) };
-    if rc == 0 {
-        return Err(format!("SetForegroundWindow fejlede: {}", get_last_error_ex()));
-    }
-    Ok(())
 }
 
 fn main() -> Result<(), String> {
@@ -123,19 +99,21 @@ fn main() -> Result<(), String> {
         return Ok(());
     }
     let mut cbstate = CallbackState { windows: vec![] };
-    let enum_windows_rc = unsafe {
+    match unsafe {
         EnumDesktopWindows(
             desktop,
             Some(enum_win_cb_raw),
             &mut cbstate as *mut CallbackState as isize,
         )
+    } {
+        0 => {
+            eprintln!("EnumDesktopWindows failed: {}", winx::get_last_error_ex());
+            return Ok(());
+        }
+        _ => (),
     };
-    if enum_windows_rc == 0 {
-        eprintln!("EnumDesktopWindows failed: {}", get_last_error_ex());
-        return Ok(());
-    }
 
-    cbstate.windows = cbstate
+    let winlist: Vec<_> = cbstate
         .windows
         .into_iter()
         .filter(|winfo| match winx::get_window_info(winfo.hwnd) {
@@ -144,9 +122,9 @@ fn main() -> Result<(), String> {
         })
         .collect();
 
-    let options: Vec<CbWindowInfo> = cbstate.windows.into_iter().take(10).collect::<Vec<_>>();
+    let options: Vec<CbWindowInfo> = winlist.into_iter().take(10).collect::<Vec<_>>();
 
-    for (idx, winfo) in options.iter().take(150).enumerate() {
+    for (idx, winfo) in options.iter().enumerate() {
         println!(
             "[{:2}] {}{}{}",
             idx + 1,
@@ -168,44 +146,8 @@ fn main() -> Result<(), String> {
         };
     };
     let c = &options[num as usize - 1];
-    if let Err(err) = focus_window(c.hwnd as *mut winapi::shared::windef::HWND__) {
+    if let Err(err) = winx::focus_window(c.hwnd as *mut winapi::shared::windef::HWND__) {
         eprintln!("Kunne ikke saette fokus: {} ", err);
     }
     Ok(())
-}
-
-fn get_last_error_ex() -> String {
-    use std::ptr;
-    use winapi::um::errhandlingapi::GetLastError;
-    use winapi::um::winbase;
-    use winapi::um::winbase::FormatMessageW;
-    let err = unsafe { GetLastError() };
-    use winapi::ctypes::c_char;
-    let mut valistx = ptr::null_mut::<c_char>();
-
-    let mut buffer: LPWSTR = ptr::null_mut();
-    use std::os::windows::prelude::*;
-
-    let charcount = unsafe {
-        FormatMessageW(
-            winbase::FORMAT_MESSAGE_ALLOCATE_BUFFER
-                | winbase::FORMAT_MESSAGE_FROM_SYSTEM
-                | winbase::FORMAT_MESSAGE_IGNORE_INSERTS,
-            ptr::null(),
-            err,
-            0,
-            (&mut buffer as *mut LPWSTR) as LPWSTR,
-            500,
-            &mut valistx,
-        )
-    };
-    let slice = unsafe { std::slice::from_raw_parts(buffer, charcount as usize) };
-    let osstring = OsString::from_wide(slice);
-
-    if charcount == 0 {
-        panic!("GetLastError failed.");
-    }
-    unsafe { LocalFree(buffer as *mut winapi::ctypes::c_void) };
-
-    osstring.into_string().expect("Kan ikke faa string fra OsString?")
 }
