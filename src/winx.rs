@@ -10,25 +10,25 @@ bitflags! {
     #[derive(Default)]
     #[repr(C)]
     pub struct WinStyle : u32 {
-       const WS_DISABLED = 0x08000000;
-       const WS_MINIMIZE = 0x20000000;
-       const WS_MINIMIZEBOX = 0x00020000;
-       const WS_POPUP = 0x80000000;
-       const WS_MAXIMIZE = 0x01000000;
-       const WS_MAXIMIZEBOX = 0x00010000;
-       const WS_GROUP = 0x00020000;
-       const WS_DLGFRAME = 0x00400000;
-       const WS_CHILD = 0x40000000;
-       const WS_SIZEBOX = 0x00040000;
-       const WS_CLIPSIBLINGS = 0x04000000;
-       const WS_VISIBLE = 0x10000000;
-       const WS_BORDER = 0x00800000;
-       const WS_CAPTION = 0x00C00000;
-       const WS_CLIPCHILDREN = 0x02000000;
-       const WS_SYSMENU = 0x00080000;
-       const WS_TABSTOP = 0x00010000;
-       const WS_THICKFRAME = 0x00040000;
-       const WS_VSCROLL = 0x00200000;
+       const WS_DISABLED = 0x0800_0000;
+       const WS_MINIMIZE = 0x2000_0000;
+       const WS_MINIMIZEBOX = 0x0002_0000;
+       const WS_POPUP = 0x8000_0000;
+       const WS_MAXIMIZE = 0x0100_0000;
+       const WS_MAXIMIZEBOX = 0x0001_0000;
+       const WS_GROUP = 0x0002_0000;
+       const WS_DLGFRAME = 0x0040_0000;
+       const WS_CHILD = 0x4000_0000;
+       const WS_SIZEBOX = 0x0004_0000;
+       const WS_CLIPSIBLINGS = 0x0400_0000;
+       const WS_VISIBLE = 0x1000_0000;
+       const WS_BORDER = 0x0080_0000;
+       const WS_CAPTION = 0x00C0_0000;
+       const WS_CLIPCHILDREN = 0x0200_0000;
+       const WS_SYSMENU = 0x0008_0000;
+       const WS_TABSTOP = 0x0001_0000;
+       const WS_THICKFRAME = 0x0004_0000;
+       const WS_VSCROLL = 0x0020_0000;
     }
 }
 

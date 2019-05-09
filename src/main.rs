@@ -46,12 +46,12 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
     use std::os::windows::prelude::*;
     let osstring = OsString::from_wide(&buf[0..cc as usize]);
     let title = osstring.into_string().expect("Conv osstring -> String failed");
-    if title.len() == 0 {
+    if title.is_empty() {
         return true;
     }
     let prochandlex = {
         let phandle = unsafe { GetProcessHandleFromHwnd(hwnd) };
-        if phandle == std::ptr::null_mut() {
+        if phandle.is_null() {
             // There is often tens of this kind of windows. They are not even
             // real windows, so we just ignore them.
             return true;
@@ -74,10 +74,11 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
 }
 
 unsafe extern "system" fn enum_win_cb_raw(hwnd: HWND, lp: LPARAM) -> BOOL {
-    let cbs = std::mem::transmute(lp as *mut CallbackState);
-    match enum_windows_cb(cbs, hwnd) {
-        true => 1,
-        false => 0,
+    let cbs = &mut *(lp as *mut CallbackState);
+    if enum_windows_cb(cbs, hwnd) {
+        1
+    } else {
+        0
     }
 }
 
@@ -87,23 +88,22 @@ fn get_window_list() -> Result<Vec<CbWindowInfo>, String> {
     use winapi::um::winuser::GetThreadDesktop;
     use winx::WinStyle;
 
-    use std::ptr;
     let curthreadid = unsafe { GetCurrentThreadId() };
     let desktop = unsafe { GetThreadDesktop(curthreadid) };
-    if desktop == ptr::null_mut() {
-        return Err(format!("GetThreadDesktop failed."));
+    if desktop.is_null() {
+        return Err("GetThreadDesktop failed.".to_string());
     }
     let winlist_raw = {
         let mut cbstate = CallbackState { windows: vec![] };
-        match unsafe {
+        if unsafe {
             EnumDesktopWindows(
                 desktop,
                 Some(enum_win_cb_raw),
                 &mut cbstate as *mut CallbackState as isize,
             )
-        } {
-            0 => return Err(format!("EnumDesktopWindows failed: {}", winx::get_last_error_ex())),
-            _ => (),
+        } == 0
+        {
+            return Err(format!("EnumDesktopWindows failed: {}", winx::get_last_error_ex()));
         };
 
         let winlist: Vec<_> = cbstate
@@ -162,7 +162,7 @@ fn main() -> Result<(), String> {
 
     for (idx, &(key, winfo, _ord)) in sorted.iter().enumerate() {
         if idx > 0 && is_numeric(sorted[idx - 1].0) != is_numeric(key) {
-            println!("");
+            println!();
         }
         println!(
             "[{}{}{}] {}{}{}",
@@ -185,11 +185,8 @@ fn main() -> Result<(), String> {
         }
         let mut mystr = String::new();
         mystr.push(chr);
-        match keyed_wins.get(&mystr) {
-            Some(v) => {
-                break v.0;
-            }
-            None => (),
+        if let Some(v) = keyed_wins.get(&mystr) {
+            break v.0;
         };
     };
     if let Err(err) = winx::focus_window(winfo.hwnd) {
