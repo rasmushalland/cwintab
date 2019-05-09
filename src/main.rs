@@ -59,6 +59,7 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
         WinHandleDrop::new(phandle)
     };
 
+    // Get window process application executable name.
     let cc = unsafe {
         winapi::um::psapi::GetProcessImageFileNameW(prochandlex.0, &mut buf[0], buf.len() as u32)
     };
@@ -80,7 +81,7 @@ unsafe extern "system" fn enum_win_cb_raw(hwnd: HWND, lp: LPARAM) -> BOOL {
     }
 }
 
-fn main() -> Result<(), String> {
+fn get_window_list() -> Result<Vec<CbWindowInfo>, String> {
     use winapi::um::processthreadsapi::GetCurrentThreadId;
     use winapi::um::winuser::EnumDesktopWindows;
     use winapi::um::winuser::GetThreadDesktop;
@@ -90,8 +91,7 @@ fn main() -> Result<(), String> {
     let curthreadid = unsafe { GetCurrentThreadId() };
     let desktop = unsafe { GetThreadDesktop(curthreadid) };
     if desktop == ptr::null_mut() {
-        eprintln!("GetThreadDesktop failed.");
-        return Ok(());
+        return Err(format!("GetThreadDesktop failed."));
     }
     let winlist = {
         let mut cbstate = CallbackState { windows: vec![] };
@@ -103,8 +103,7 @@ fn main() -> Result<(), String> {
             )
         } {
             0 => {
-                eprintln!("EnumDesktopWindows failed: {}", winx::get_last_error_ex());
-                return Ok(());
+                return Err(format!("EnumDesktopWindows failed: {}", winx::get_last_error_ex()));
             }
             _ => (),
         };
@@ -132,12 +131,17 @@ fn main() -> Result<(), String> {
             None => winlist,
         }
     };
+    Ok(winlist)
+}
 
+fn main() -> Result<(), String> {
+    use std::collections::HashMap;
+
+    let winlist = get_window_list()?;
     // We want a list of some browser windows first, and then (some of) the other windows.
     let (brwins, otherwins): (Vec<_>, Vec<_>) = winlist.iter().partition(|&v| {
         v.exepath.find("chrome.exe").is_some() || v.exepath.find("firefox.exe").is_some()
     });
-    use std::collections::HashMap;
     let mut keyed_wins: HashMap<String, (&CbWindowInfo, u32)> = HashMap::new();
     for (digit, win) in "123456789".chars().zip(brwins) {
         let mut ss = String::new();
@@ -172,7 +176,7 @@ fn main() -> Result<(), String> {
         );
     }
     let winfo = loop {
-        println!("Write one of the digits or letters, or press ctrl+c, escape or q to abort:");
+        println!("Press one of the digits or letters to focus the window. Press ctrl+c, escape or q to abort:");
         let chr = crossterm::input()
             .read_char()
             .map_err(|err| format!("Read input failed: {:?}", err))?;
