@@ -1,5 +1,5 @@
 [package]
-name = "wintab"
+name = "cwintab"
 version = "0.1.0"
 authors = ["Rasmus Halland <halland@gmail.com>"]
 edition = "2018"
