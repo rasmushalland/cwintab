@@ -2,9 +2,8 @@ use winapi::shared::minwindef::ATOM;
 use winapi::shared::minwindef::DWORD;
 use winapi::shared::minwindef::UINT;
 use winapi::shared::minwindef::WORD;
-// use winapi::shared::minwindef::BOOL;
-use super::*;
 use winapi::shared::windef::RECT;
+use super::*;
 
 bitflags! {
     // https://docs.microsoft.com/en-us/windows/desktop/winmsg/window-styles
@@ -83,7 +82,6 @@ pub(crate) fn is_window_minimized(hwnd: HWND) -> Result<bool, String> {
     Ok((wi.dwStyle & WinStyle::WS_MINIMIZE).bits() != 0)
 }
 
-
 pub fn focus_window(hwnd: HWND) -> Result<(), String> {
     if winx::is_window_minimized(hwnd)? {
         const SW_RESTORE: i32 = 9;
@@ -99,11 +97,10 @@ pub fn focus_window(hwnd: HWND) -> Result<(), String> {
 
     let rc = unsafe { winapi::um::winuser::SetForegroundWindow(hwnd) };
     if rc == 0 {
-        return Err(format!("SetForegroundWindow fejlede: {}", get_last_error_ex()));
+        return Err(format!("SetForegroundWindow failed: {}", get_last_error_ex()));
     }
     Ok(())
 }
-
 
 pub fn get_last_error_ex() -> String {
     use std::ptr;
@@ -138,5 +135,5 @@ pub fn get_last_error_ex() -> String {
     }
     unsafe { LocalFree(buffer as *mut winapi::ctypes::c_void) };
 
-    osstring.into_string().expect("Kan ikke faa string fra OsString?")
+    osstring.into_string().expect("Can't get String fra OsString?")
 }

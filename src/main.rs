@@ -43,19 +43,19 @@ struct CallbackState {
 fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
     let buf = &mut [0u16; 200];
 
-    // Hent title for hwnd.
+    // Get title for hwnd.
     let cc = unsafe { winapi::um::winuser::GetWindowTextW(hwnd, &mut buf[0], buf.len() as i32) };
     use std::os::windows::prelude::*;
     let osstring = OsString::from_wide(&buf[0..cc as usize]);
-    let title = osstring.into_string().expect("Conv osstring -> String fejlede");
+    let title = osstring.into_string().expect("Conv osstring -> String failed");
     if title.len() == 0 {
         return true;
     }
     let prochandlex = {
         let phandle = unsafe { GetProcessHandleFromHwnd(hwnd) };
         if phandle == std::ptr::null_mut() {
-            // Der er 10-50 af disse. Fejler med 'Access denied', og vinduerne
-            // er ikke interessante, og oftest ikke rigtige vinduer.
+            // There is often tens of this kind of windows. They are not even
+            // real windows, so we just ignore them.
             return true;
         }
         WinHandleDrop::new(phandle)
@@ -65,10 +65,7 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
         winapi::um::psapi::GetProcessImageFileNameW(prochandlex.0, &mut buf[0], buf.len() as u32)
     };
     let processfilename = OsString::from_wide(&buf[0..cc as usize]);
-    let exepath = processfilename.into_string().expect("Conv osstring -> String fejlede");
-    // if !exepath.ends_with("chrome.exe") {
-    //     return true;
-    // }
+    let exepath = processfilename.into_string().expect("Conv osstring -> String failed");
     let mut exepath =
         exepath.rsplit('\\').nth(0).expect("exepath split by \\ has no elements.").to_string();
     exepath.make_ascii_lowercase();
@@ -138,7 +135,7 @@ fn main() -> Result<(), String> {
         }
     };
 
-    // Browservinduer foerst, derefter nogle af resten.
+    // We want a list of some browser windows first, and then (some of) the other windows.
     let (brwins, otherwins): (Vec<_>, Vec<_>) = winlist.iter().partition(|&v| {
         v.exepath.find("chrome.exe").is_some() || v.exepath.find("firefox.exe").is_some()
     });
@@ -177,12 +174,12 @@ fn main() -> Result<(), String> {
         );
     }
     let winfo = loop {
-        println!("Skriv et af tallene eller bogstaverne");
+        println!("Write one of the digits or letters:");
         let chr = crossterm::input()
             .read_char()
             .map_err(|err| format!("Read input failed: {:?}", err))?;
-        // ascii 3 er ctrl-c.
-        if chr == 3 as char || chr == 27 as char {
+        // ascii 3 is ctrl-c.
+        if chr == 3 as char || chr == 27 as char || chr == 'q' {
             return Ok(());
         }
         let mut mystr = String::new();
@@ -195,7 +192,7 @@ fn main() -> Result<(), String> {
         };
     };
     if let Err(err) = winx::focus_window(winfo.hwnd) {
-        eprintln!("Kunne ikke saette fokus: {} ", err);
+        eprintln!("Could not focus window: {} ", err);
     }
     Ok(())
 }
