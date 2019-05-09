@@ -128,31 +128,54 @@ fn main() -> Result<(), String> {
         winlist
     };
 
-    let options: Vec<CbWindowInfo> = winlist.into_iter().take(10).collect::<Vec<_>>();
+    // Browservinduer foerst, saa nogle af resten
+    let (brwins, otherwins): (Vec<_>, Vec<_>) = winlist.iter().partition(|&v| {
+        v.exepath.find("chrome.exe").is_some() || v.exepath.find("firefox.exe").is_some()
+    });
+    use std::collections::HashMap;
+    let mut keyedWins: HashMap<String, (&CbWindowInfo, u32)> = HashMap::new();
+    for (digit, win) in "123456789".chars().zip(brwins) {
+        let mut ss = String::new();
+        ss.push(digit);
+        keyedWins.insert(ss, (win, keyedWins.len() as u32));
+    }
+    for (ch, win) in "abcdefghij".chars().zip(otherwins) {
+        let mut ss = String::new();
+        ss.push(ch);
+        keyedWins.insert(ss, (win, keyedWins.len() as u32));
+    }
 
-    for (idx, winfo) in options.iter().enumerate() {
+    let mut sorted: Vec<_> = keyedWins.iter().map(|(k, &(win, ord))| (k, win, ord)).collect();
+    sorted.sort_by_key(|x| x.2);
+
+    fn is_numeric(key: &str) -> bool {
+        key.chars().next().unwrap().is_numeric()
+    }
+
+    for (idx, &(key, winfo, _ord)) in sorted.iter().enumerate() {
+        if idx > 0 && is_numeric(sorted[idx - 1].0) != is_numeric(key) {
+            println!("");
+        }
         println!(
-            "[{:2}] {}{}{}",
-            idx + 1,
+            "[{}] {}{}{}",
+            key,
             crossterm::Colored::Fg(crossterm::Color::Yellow),
             winfo.title,
             crossterm::Colored::Fg(crossterm::Color::White),
         );
     }
-    let num = loop {
-        println!("Skriv tal mellem {} og {}.", 1, options.len());
-        let choice = crossterm::input().read_line().expect("Kunne ikke laese input.");
-        match choice.parse::<u32>() {
-            Ok(v) => {
-                if v >= 1 && v as usize <= options.len() {
-                    break v;
-                }
+    let winfo = loop {
+        println!("Skriv et af tallene eller bogstaverne");
+        let choice =
+            crossterm::input().read_line().map_err(|err| format!("Read line failed: {:?}", err))?;
+        match keyedWins.get(&choice) {
+            Some(v) => {
+                break v.0;
             }
-            Err(_) => (),
+            None => (),
         };
     };
-    let c = &options[num as usize - 1];
-    if let Err(err) = winx::focus_window(c.hwnd as *mut winapi::shared::windef::HWND__) {
+    if let Err(err) = winx::focus_window(winfo.hwnd as *mut winapi::shared::windef::HWND__) {
         eprintln!("Kunne ikke saette fokus: {} ", err);
     }
     Ok(())
