@@ -157,8 +157,10 @@ fn main() -> Result<(), String> {
             println!("");
         }
         println!(
-            "[{}] {}{}{}",
+            "[{}{}{}] {}{}{}",
+            crossterm::Colored::Fg(crossterm::Color::Green),
             key,
+            crossterm::Colored::Fg(crossterm::Color::White),
             crossterm::Colored::Fg(crossterm::Color::Yellow),
             winfo.title,
             crossterm::Colored::Fg(crossterm::Color::White),
@@ -166,16 +168,23 @@ fn main() -> Result<(), String> {
     }
     let winfo = loop {
         println!("Skriv et af tallene eller bogstaverne");
-        let choice =
-            crossterm::input().read_line().map_err(|err| format!("Read line failed: {:?}", err))?;
-        match keyedWins.get(&choice) {
+        let chr = crossterm::input()
+            .read_char()
+            .map_err(|err| format!("Read input failed: {:?}", err))?;
+        // ascii 3 er ctrl-c.
+        if chr == 3 as char || chr == 27 as char {
+            return Ok(());
+        }
+        let mut mystr = String::new();
+        mystr.push(chr);
+        match keyedWins.get(&mystr) {
             Some(v) => {
                 break v.0;
             }
             None => (),
         };
     };
-    if let Err(err) = winx::focus_window(winfo.hwnd as *mut winapi::shared::windef::HWND__) {
+    if let Err(err) = winx::focus_window(winfo.hwnd) {
         eprintln!("Kunne ikke saette fokus: {} ", err);
     }
     Ok(())
