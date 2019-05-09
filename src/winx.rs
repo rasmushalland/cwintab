@@ -1,9 +1,9 @@
+use super::*;
 use winapi::shared::minwindef::ATOM;
 use winapi::shared::minwindef::DWORD;
 use winapi::shared::minwindef::UINT;
 use winapi::shared::minwindef::WORD;
 use winapi::shared::windef::RECT;
-use super::*;
 
 bitflags! {
     // https://docs.microsoft.com/en-us/windows/desktop/winmsg/window-styles
@@ -33,6 +33,7 @@ bitflags! {
 }
 
 #[repr(C)]
+#[allow(non_snake_case)]
 pub struct WindowInfo {
     cbSize: DWORD,
     rcWindow: RECT,
@@ -127,12 +128,12 @@ pub fn get_last_error_ex() -> String {
             &mut valistx,
         )
     };
-    let slice = unsafe { std::slice::from_raw_parts(buffer, charcount as usize) };
-    let osstring = OsString::from_wide(slice);
-
     if charcount == 0 {
         panic!("GetLastError failed.");
     }
+    let slice = unsafe { std::slice::from_raw_parts(buffer, charcount as usize) };
+    let osstring = OsString::from_wide(slice);
+
     unsafe { LocalFree(buffer as *mut winapi::ctypes::c_void) };
 
     osstring.into_string().expect("Can't get String fra OsString?")

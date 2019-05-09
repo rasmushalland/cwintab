@@ -1,5 +1,3 @@
-#![allow(non_snake_case)]
-
 #[macro_use]
 extern crate bitflags;
 
@@ -140,19 +138,19 @@ fn main() -> Result<(), String> {
         v.exepath.find("chrome.exe").is_some() || v.exepath.find("firefox.exe").is_some()
     });
     use std::collections::HashMap;
-    let mut keyedWins: HashMap<String, (&CbWindowInfo, u32)> = HashMap::new();
+    let mut keyed_wins: HashMap<String, (&CbWindowInfo, u32)> = HashMap::new();
     for (digit, win) in "123456789".chars().zip(brwins) {
         let mut ss = String::new();
         ss.push(digit);
-        keyedWins.insert(ss, (win, keyedWins.len() as u32));
+        keyed_wins.insert(ss, (win, keyed_wins.len() as u32));
     }
     for (ch, win) in "abcdefghij".chars().zip(otherwins) {
         let mut ss = String::new();
         ss.push(ch);
-        keyedWins.insert(ss, (win, keyedWins.len() as u32));
+        keyed_wins.insert(ss, (win, keyed_wins.len() as u32));
     }
 
-    let mut sorted: Vec<_> = keyedWins.iter().map(|(k, &(win, ord))| (k, win, ord)).collect();
+    let mut sorted: Vec<_> = keyed_wins.iter().map(|(k, &(win, ord))| (k, win, ord)).collect();
     sorted.sort_by_key(|x| x.2);
 
     fn is_numeric(key: &str) -> bool {
@@ -174,7 +172,7 @@ fn main() -> Result<(), String> {
         );
     }
     let winfo = loop {
-        println!("Write one of the digits or letters:");
+        println!("Write one of the digits or letters, or press ctrl+c, escape or q to abort:");
         let chr = crossterm::input()
             .read_char()
             .map_err(|err| format!("Read input failed: {:?}", err))?;
@@ -184,7 +182,7 @@ fn main() -> Result<(), String> {
         }
         let mut mystr = String::new();
         mystr.push(chr);
-        match keyedWins.get(&mystr) {
+        match keyed_wins.get(&mystr) {
             Some(v) => {
                 break v.0;
             }
