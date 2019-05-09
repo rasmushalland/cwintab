@@ -93,7 +93,7 @@ fn get_window_list() -> Result<Vec<CbWindowInfo>, String> {
     if desktop == ptr::null_mut() {
         return Err(format!("GetThreadDesktop failed."));
     }
-    let winlist = {
+    let winlist_raw = {
         let mut cbstate = CallbackState { windows: vec![] };
         match unsafe {
             EnumDesktopWindows(
@@ -102,9 +102,7 @@ fn get_window_list() -> Result<Vec<CbWindowInfo>, String> {
                 &mut cbstate as *mut CallbackState as isize,
             )
         } {
-            0 => {
-                return Err(format!("EnumDesktopWindows failed: {}", winx::get_last_error_ex()));
-            }
+            0 => return Err(format!("EnumDesktopWindows failed: {}", winx::get_last_error_ex())),
             _ => (),
         };
 
@@ -118,18 +116,19 @@ fn get_window_list() -> Result<Vec<CbWindowInfo>, String> {
                 Err(_) => true,
             })
             .collect();
+        winlist
+    };
 
-        let curproc: Option<String> = match std::env::current_exe() {
-            Ok(path) => path.file_name().map(|osstr| osstr.to_string_lossy().into_owned()),
-            Err(_) => {
-                // nothing, not removing ourselves from the list is not terrible.
-                None
-            }
-        };
-        match curproc {
-            Some(exename) => winlist.into_iter().filter(|winfo| winfo.title != exename).collect(),
-            None => winlist,
+    let curproc: Option<String> = match std::env::current_exe() {
+        Ok(path) => path.file_name().map(|osstr| osstr.to_string_lossy().into_owned()),
+        Err(_) => {
+            // nothing, not removing ourselves from the list is not terrible.
+            None
         }
+    };
+    let winlist = match curproc {
+        Some(exename) => winlist_raw.into_iter().filter(|winfo| winfo.title != exename).collect(),
+        None => winlist_raw,
     };
     Ok(winlist)
 }
