@@ -98,29 +98,35 @@ fn main() -> Result<(), String> {
         eprintln!("GetThreadDesktop failed.");
         return Ok(());
     }
-    let mut cbstate = CallbackState { windows: vec![] };
-    match unsafe {
-        EnumDesktopWindows(
-            desktop,
-            Some(enum_win_cb_raw),
-            &mut cbstate as *mut CallbackState as isize,
-        )
-    } {
-        0 => {
-            eprintln!("EnumDesktopWindows failed: {}", winx::get_last_error_ex());
-            return Ok(());
-        }
-        _ => (),
-    };
+    let winlist = {
+        let mut cbstate = CallbackState { windows: vec![] };
+        match unsafe {
+            EnumDesktopWindows(
+                desktop,
+                Some(enum_win_cb_raw),
+                &mut cbstate as *mut CallbackState as isize,
+            )
+        } {
+            0 => {
+                eprintln!("EnumDesktopWindows failed: {}", winx::get_last_error_ex());
+                return Ok(());
+            }
+            _ => (),
+        };
 
-    let winlist: Vec<_> = cbstate
-        .windows
-        .into_iter()
-        .filter(|winfo| match winx::get_window_info(winfo.hwnd) {
-            Ok(info) => (info.dwStyle & (WinStyle::WS_DISABLED | WinStyle::WS_POPUP)).bits() == 0,
-            Err(_) => true,
-        })
-        .collect();
+        let winlist: Vec<_> = cbstate
+            .windows
+            .into_iter()
+            .filter(|winfo| match winx::get_window_info(winfo.hwnd) {
+                Ok(info) => {
+                    (info.dwStyle & (WinStyle::WS_DISABLED | WinStyle::WS_POPUP)).bits() == 0
+                }
+                Err(_) => true,
+            })
+            .collect();
+
+        winlist
+    };
 
     let options: Vec<CbWindowInfo> = winlist.into_iter().take(10).collect::<Vec<_>>();
 
