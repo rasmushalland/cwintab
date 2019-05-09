@@ -45,7 +45,7 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
     let cc = unsafe { winapi::um::winuser::GetWindowTextW(hwnd, &mut buf[0], buf.len() as i32) };
     use std::os::windows::prelude::*;
     let osstring = OsString::from_wide(&buf[0..cc as usize]);
-    let title = osstring.into_string().expect("Conv osstring -> String failed");
+    let title = osstring.to_string_lossy().into_owned();
     if title.is_empty() {
         return true;
     }
@@ -64,7 +64,7 @@ fn enum_windows_cb(cbs: &mut CallbackState, hwnd: HWND) -> bool {
         winapi::um::psapi::GetProcessImageFileNameW(prochandlex.0, &mut buf[0], buf.len() as u32)
     };
     let processfilename = OsString::from_wide(&buf[0..cc as usize]);
-    let exepath = processfilename.into_string().expect("Conv osstring -> String failed");
+    let exepath = processfilename.to_string_lossy().into_owned();
     let mut exepath =
         exepath.rsplit('\\').nth(0).expect("exepath split by \\ has no elements.").to_string();
     exepath.make_ascii_lowercase();
@@ -189,8 +189,6 @@ fn main() -> Result<(), String> {
             break v.0;
         };
     };
-    if let Err(err) = winx::focus_window(winfo.hwnd) {
-        eprintln!("Could not focus window: {} ", err);
-    }
+    winx::focus_window(winfo.hwnd).map_err(|err| format!("Could not focus window: {} ", err))?;
     Ok(())
 }

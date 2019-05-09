@@ -136,5 +136,5 @@ pub fn get_last_error_ex() -> String {
 
     unsafe { LocalFree(buffer as *mut winapi::ctypes::c_void) };
 
-    osstring.into_string().expect("Can't get String fra OsString?")
+    osstring.to_string_lossy().into_owned()
 }
