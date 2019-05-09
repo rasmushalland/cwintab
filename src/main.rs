@@ -125,10 +125,20 @@ fn main() -> Result<(), String> {
             })
             .collect();
 
-        winlist
+        let curproc: Option<String> = match std::env::current_exe() {
+            Ok(path) => path.file_name().map(|osstr| osstr.to_string_lossy().into_owned()),
+            Err(_) => {
+                // nothing, not removing ourselves from the list is not terrible.
+                None
+            }
+        };
+        match curproc {
+            Some(exename) => winlist.into_iter().filter(|winfo| winfo.title != exename).collect(),
+            None => winlist,
+        }
     };
 
-    // Browservinduer foerst, saa nogle af resten
+    // Browservinduer foerst, derefter nogle af resten.
     let (brwins, otherwins): (Vec<_>, Vec<_>) = winlist.iter().partition(|&v| {
         v.exepath.find("chrome.exe").is_some() || v.exepath.find("firefox.exe").is_some()
     });
