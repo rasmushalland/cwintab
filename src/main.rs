@@ -139,7 +139,9 @@ fn main() -> Result<(), String> {
     let winlist = get_window_list()?;
     // We want a list of some browser windows first, and then (some of) the other windows.
     let (brwins, otherwins): (Vec<_>, Vec<_>) = winlist.iter().partition(|&v| {
-        v.exepath.find("chrome.exe").is_some() || v.exepath.find("firefox.exe").is_some()
+        v.exepath.find("chrome.exe").is_some()
+            || v.exepath.find("firefox.exe").is_some()
+            || v.exepath.find("iexplore.exe").is_some()
     });
     let mut keyed_wins: HashMap<String, (&CbWindowInfo, u32)> = HashMap::new();
     for (digit, win) in "123456789".chars().zip(brwins) {
