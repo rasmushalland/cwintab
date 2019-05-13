@@ -111,7 +111,13 @@ fn get_window_list() -> Result<Vec<CbWindowInfo>, String> {
             .into_iter()
             .filter(|winfo| match winx::get_window_info(winfo.hwnd) {
                 Ok(info) => {
-                    (info.dwStyle & (WinStyle::WS_DISABLED | WinStyle::WS_POPUP)).bits() == 0
+                    if (info.dwStyle & (WinStyle::WS_DISABLED)).bits() != 0 {
+                        false
+                    } else {
+                        // 20190513: Edge windows are WS_POPUP and are owned by 'applicationframehost.exe'.
+                        let looks_like_edge = || winfo.title.ends_with("- Microsoft Edge");
+                        (info.dwStyle & WinStyle::WS_POPUP).bits() == 0 || looks_like_edge()
+                    }
                 }
                 Err(_) => true,
             })
