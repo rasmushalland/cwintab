@@ -148,6 +148,7 @@ fn main() -> Result<(), String> {
         v.exepath.find("chrome.exe").is_some()
             || v.exepath.find("firefox.exe").is_some()
             || v.exepath.find("iexplore.exe").is_some()
+            || v.title.ends_with("- Microsoft Edge")
     });
     let mut keyed_wins: HashMap<String, (&CbWindowInfo, u32)> = HashMap::new();
     for (digit, win) in "123456789".chars().zip(brwins) {
